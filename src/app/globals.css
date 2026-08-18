@@ -1,0 +1,31 @@
+@tailwind base;
+@tailwind components;
+@tailwind utilities;
+
+html,
+body {
+  height: 100%;
+}
+
+body {
+  background: radial-gradient(circle at 20% -10%, #1b2a4a 0%, #0b0f1a 55%, #05070c 100%);
+  color: #f1f5f9;
+}
+
+@keyframes pulse-scale {
+  0%,
+  100% {
+    transform: scale(1);
+  }
+  50% {
+    transform: scale(1.03);
+  }
+}
+
+.pulse-btn {
+  animation: pulse-scale 1.4s ease-in-out infinite;
+}
+
+.pulse-btn:disabled {
+  animation: none;
+}
