@@ -48,13 +48,11 @@ export default function Home() {
   const handleSave = async () => {
     if (!labelInput.trim()) return;
     const label = labelInput.trim();
-    await c.saveWithLabel(label);
-    if (c.uploadStatus === "error") {
-      setSavedMessage(
-        `"${label}" 라벨로 이 기기에는 저장했지만, Supabase 업로드는 실패했습니다: ${c.uploadError ?? ""}`,
-      );
+    const result = await c.saveWithLabel(label);
+    if (!result.uploadOk) {
+      setSavedMessage(`"${label}" 라벨로 이 기기에는 저장했지만, Supabase 업로드는 실패했습니다: ${result.uploadMessage}`);
     } else {
-      setSavedMessage(`"${label}" 라벨로 사진과 함께 저장하고 Supabase에도 자동 업로드했습니다`);
+      setSavedMessage(`"${label}" 라벨로 사진과 함께 저장하고 Supabase에도 자동 업로드했습니다 (${result.uploadMessage})`);
     }
     setRefreshKey((k) => k + 1);
   };

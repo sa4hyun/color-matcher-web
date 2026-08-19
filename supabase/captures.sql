@@ -14,12 +14,19 @@ create table if not exists captures (
   label text not null default '',
   step_index integer not null,       -- 0=배경, 1..N=LED
   channel_name text,                 -- 'background' 또는 'Red'/'Green'/'Blue'
-  r integer not null,
-  g integer not null,
-  b integer not null,
+  r numeric not null,
+  g numeric not null,
+  b numeric not null,
   storage_path text not null,        -- storage.objects의 captures 버킷 안 경로
   created_at timestamptz not null default now()
 );
+
+-- 이미 integer로 만들어진 상태에서 재실행하는 경우를 위한 안전장치.
+-- r/g/b는 픽셀 평균이라 소수점이 있는데, integer 컬럼이면 insert가 그대로 거부된다
+-- (예: 123.456 -> "invalid input syntax for type integer" 에러) — numeric으로 바꿔둔다.
+alter table captures alter column r type numeric using r::numeric;
+alter table captures alter column g type numeric using g::numeric;
+alter table captures alter column b type numeric using b::numeric;
 
 create index if not exists captures_session_id_idx on captures (session_id);
 

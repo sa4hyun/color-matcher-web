@@ -198,10 +198,10 @@ export function useCaptureController() {
   const [uploadError, setUploadError] = useState<string | null>(null);
 
   const saveWithLabel = useCallback(
-    async (label: string) => {
-      if (!lastSession) return;
+    async (label: string): Promise<{ uploadOk: boolean; uploadMessage: string }> => {
+      if (!lastSession) return { uploadOk: false, uploadMessage: "저장할 촬영 결과가 없습니다" };
       const trimmed = label.trim();
-      if (!trimmed) return;
+      if (!trimmed) return { uploadOk: false, uploadMessage: "라벨을 입력하세요" };
       setSaving(true);
       try {
         const finalSession: CaptureSession = { ...lastSession, label: trimmed };
@@ -211,14 +211,26 @@ export function useCaptureController() {
         // 로컬(IndexedDB) 저장은 항상 먼저 확실히 끝내고, 그 다음 Supabase에도
         // 자동으로 올린다. 업로드가 실패해도 로컬 저장 자체는 이미 끝난 상태이므로
         // 데이터를 잃지는 않는다 — 에러만 별도로 보여준다.
+        // 반환값을 그대로 호출부(page.tsx)에 돌려준다 — await 직후 훅 state를
+        // 다시 읽으면 리렌더 전이라 오래된 값일 수 있어서, 결과를 직접 리턴한다.
         setUploadStatus("uploading");
         setUploadError(null);
         try {
-          await uploadSessionToCloud(finalSession);
-          setUploadStatus("done");
+          const result = await uploadSessionToCloud(finalSession);
+          if (result.errors.length === 0) {
+            setUploadStatus("done");
+            return { uploadOk: true, uploadMessage: `사진 ${result.uploaded}장 업로드 완료` };
+          } else {
+            const message = `${result.uploaded}/${result.total}장만 업로드됨: ${result.errors.join("; ")}`;
+            setUploadStatus("error");
+            setUploadError(message);
+            return { uploadOk: false, uploadMessage: message };
+          }
         } catch (e) {
+          const message = e instanceof Error ? e.message : String(e);
           setUploadStatus("error");
-          setUploadError(e instanceof Error ? e.message : String(e));
+          setUploadError(message);
+          return { uploadOk: false, uploadMessage: message };
         }
       } finally {
         setSaving(false);

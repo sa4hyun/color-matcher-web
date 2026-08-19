@@ -34,10 +34,16 @@ export async function POST(req: NextRequest) {
 
   const supabase = getSupabaseAdmin();
   let uploaded = 0;
+  const errors: string[] = [];
 
+  // 사진 한 장이 실패해도 나머지는 계속 시도한다 (예전엔 하나 실패하면 바로
+  // 중단해서, 왜 일부만 올라가고 나머지는 하나도 안 올라가는지 알기 어려웠음).
   for (const meta of shotsMeta) {
     const file = form.get(meta.fileField);
-    if (!(file instanceof File)) continue;
+    if (!(file instanceof File)) {
+      errors.push(`${meta.fileField}: 파일을 찾지 못함`);
+      continue;
+    }
 
     const path = `${sessionId}/${meta.fileField}.jpg`;
     const arrayBuffer = await file.arrayBuffer();
@@ -47,10 +53,8 @@ export async function POST(req: NextRequest) {
       .upload(path, arrayBuffer, { contentType: "image/jpeg", upsert: true });
 
     if (uploadErr) {
-      return NextResponse.json(
-        { ok: false, error: `스토리지 업로드 실패 (${meta.fileField}): ${uploadErr.message}` },
-        { status: 500 },
-      );
+      errors.push(`${meta.fileField} 스토리지 업로드 실패: ${uploadErr.message}`);
+      continue;
     }
 
     const { error: insertErr } = await supabase.from("captures").insert({
@@ -65,14 +69,17 @@ export async function POST(req: NextRequest) {
     });
 
     if (insertErr) {
-      return NextResponse.json(
-        { ok: false, error: `메타데이터 저장 실패 (${meta.fileField}): ${insertErr.message}` },
-        { status: 500 },
-      );
+      errors.push(`${meta.fileField} 메타데이터 저장 실패: ${insertErr.message}`);
+      continue;
     }
 
     uploaded++;
   }
 
-  return NextResponse.json({ ok: true, uploaded });
+  return NextResponse.json({
+    ok: errors.length === 0,
+    uploaded,
+    total: shotsMeta.length,
+    errors,
+  });
 }
