@@ -5,6 +5,7 @@ import { getStatus, setChannelAndWait } from "./ledClient";
 import { captureFrame } from "./colorAnalysis";
 import { CaptureSession, LED_CHANNEL_NAMES, RawShot, isSessionComplete } from "./types";
 import { saveSessionToDb } from "./db";
+import { uploadSessionToCloud } from "./cloudUpload";
 
 export type FlowState = "idle" | "capturing" | "done" | "error";
 
@@ -193,6 +194,8 @@ export function useCaptureController() {
   }, [cameraReady, captureStep, connected, totalSteps]);
 
   const [saving, setSaving] = useState(false);
+  const [uploadStatus, setUploadStatus] = useState<"idle" | "uploading" | "done" | "error">("idle");
+  const [uploadError, setUploadError] = useState<string | null>(null);
 
   const saveWithLabel = useCallback(
     async (label: string) => {
@@ -204,6 +207,19 @@ export function useCaptureController() {
         const finalSession: CaptureSession = { ...lastSession, label: trimmed };
         await saveSessionToDb(finalSession);
         setLastSession(finalSession);
+
+        // 로컬(IndexedDB) 저장은 항상 먼저 확실히 끝내고, 그 다음 Supabase에도
+        // 자동으로 올린다. 업로드가 실패해도 로컬 저장 자체는 이미 끝난 상태이므로
+        // 데이터를 잃지는 않는다 — 에러만 별도로 보여준다.
+        setUploadStatus("uploading");
+        setUploadError(null);
+        try {
+          await uploadSessionToCloud(finalSession);
+          setUploadStatus("done");
+        } catch (e) {
+          setUploadStatus("error");
+          setUploadError(e instanceof Error ? e.message : String(e));
+        }
       } finally {
         setSaving(false);
       }
@@ -240,6 +256,8 @@ export function useCaptureController() {
     startCapture,
     saveWithLabel,
     saving,
+    uploadStatus,
+    uploadError,
     reset,
   };
 }
