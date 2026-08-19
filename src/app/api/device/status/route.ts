@@ -1,6 +1,12 @@
 import { NextResponse } from "next/server";
 import { getSupabaseAdmin, DEVICE_ID } from "@/lib/supabaseAdmin";
 
+// 이 라우트는 request 객체를 안 써서 Next.js가 빌드 시점에 정적으로
+// 캐싱해버릴 수 있다 (그러면 배포 이후 DB가 바뀌어도 항상 같은 옛날 값만
+// 리턴됨). 매 요청마다 새로 실행되도록 강제로 dynamic 처리한다.
+export const dynamic = "force-dynamic";
+export const revalidate = 0;
+
 /**
  * 브라우저가 "ESP32가 명령을 실제로 적용했는지" 폴링하는 엔드포인트.
  * appliedId >= commandId 이고 appliedChannel이 요청한 채널과 같아지면
