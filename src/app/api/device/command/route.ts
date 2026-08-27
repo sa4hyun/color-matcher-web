@@ -1,5 +1,6 @@
 import { NextRequest, NextResponse } from "next/server";
 import { getSupabaseAdmin, DEVICE_ID } from "@/lib/supabaseAdmin";
+import { LED_CHANNEL_NAMES } from "@/lib/types";
 
 /**
  * 브라우저(폰)가 "이 채널을 켜줘"라고 요청하는 엔드포인트.
@@ -11,8 +12,14 @@ export async function POST(req: NextRequest) {
   const body = await req.json().catch(() => null);
   const channel = body?.channel;
 
-  if (typeof channel !== "number" || !Number.isInteger(channel) || channel < -1 || channel > 2) {
-    return NextResponse.json({ ok: false, error: "channel은 -1~2 사이의 정수여야 합니다" }, { status: 400 });
+  // LED 개수가 바뀌어도 자동으로 맞는 범위여야 함 — 예전엔 -1~2로 고정돼 있어서
+  // LED를 늘렸을 때(지금 10개) 3번 이상 채널 요청이 전부 400으로 막혔었다.
+  const maxChannel = LED_CHANNEL_NAMES.length - 1;
+  if (typeof channel !== "number" || !Number.isInteger(channel) || channel < -1 || channel > maxChannel) {
+    return NextResponse.json(
+      { ok: false, error: `channel은 -1~${maxChannel} 사이의 정수여야 합니다` },
+      { status: 400 },
+    );
   }
 
   const supabase = getSupabaseAdmin();
