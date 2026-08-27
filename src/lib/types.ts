@@ -1,15 +1,44 @@
 /**
  * esp32_firmware/src/main.cpp 의 LED_PINS 순서와 반드시 같아야 한다.
- * GPIO 14 → Red(ch0), GPIO 13 → Green(ch1), GPIO 12 → Blue(ch2).
- * 배선 색이 바뀌면 이 배열과 esp32_firmware의 LED_PINS를 함께 맞춰서 바꾸면 된다.
+ * GPIO 14 → Red(ch0), GPIO 13 → Green(ch1), GPIO 12 → Blue(ch2),
+ * GPIO 36 → LED4(ch3), GPIO 37 → LED5(ch4), GPIO 21 → LED6(ch5),
+ * GPIO 47 → LED7(ch6), GPIO 48 → LED8(ch7), GPIO 38 → LED9(ch8),
+ * GPIO 39 → LED10(ch9). (실측 배선 기준 — 직접 설계/지정)
+ *
+ * 히스토리: LED4/LED5는 GPIO19/20(USB D-/D+와 물리적으로 겹쳐서 USB 인식
+ * 자체가 안 됨, 확인됨) → GPIO0/45(부팅 스트래핑 핀이라 위험) → GPIO26/27
+ * (빌드 타깃상 빈 핀으로 보였으나 실제 보드 헤더에 안 나와 있음, 아마
+ * 실제 모듈이 PSRAM 있는 버전이라 내부 배선용으로 쓰였을 가능성) 순으로
+ * 시도하다, 보드 헤더에 실제로 나와 있는 GPIO36/37로 최종 확정했다
+ * (2026-08-27). LED9/LED10도 같은 이유로 같은 헤더 그룹의 GPIO38/39를
+ * 썼다. 배선이 또 바뀌면 이 배열과 esp32_firmware의 LED_PINS를 함께
+ * 맞춰서 바꾸면 된다.
  */
-export const LED_CHANNEL_NAMES = ["Red", "Green", "Blue"] as const;
-export const LED_GPIO_PINS = [14, 13, 12] as const;
+export const LED_CHANNEL_NAMES = [
+  "Red",
+  "Green",
+  "Blue",
+  "LED4",
+  "LED5",
+  "LED6",
+  "LED7",
+  "LED8",
+  "LED9",
+  "LED10",
+] as const;
+export const LED_GPIO_PINS = [14, 13, 12, 36, 37, 21, 47, 48, 38, 39] as const;
 
 export const LED_CHANNEL_HEX: Record<(typeof LED_CHANNEL_NAMES)[number], string> = {
   Red: "#EF4444",
   Green: "#22C55E",
   Blue: "#3B82F6",
+  LED4: "#FACC15",
+  LED5: "#F97316",
+  LED6: "#06B6D4",
+  LED7: "#A855F7",
+  LED8: "#EC4899",
+  LED9: "#84CC16",
+  LED10: "#6366F1",
 };
 
 /** 촬영 1장의 raw 결과 (배경 또는 특정 LED 채널) */
@@ -39,7 +68,7 @@ export function isSessionComplete(shots: RawShot[]): boolean {
 
 /**
  * docs 의 정규화 공식과 동일: normalized = (sample - background) / (background + epsilon)
- * 반환 벡터는 [ch0_r, ch0_g, ch0_b, ch1_r, ..., ch(N-1)_b] 순서, LED 3개 기준 9차원.
+ * 반환 벡터는 [ch0_r, ch0_g, ch0_b, ch1_r, ..., ch(N-1)_b] 순서, LED 10개 기준 30차원.
  */
 export function computeFingerprint(shots: RawShot[], epsilon = 1.0): number[] {
   const bg = shots.find((s) => s.stepIndex === 0);
