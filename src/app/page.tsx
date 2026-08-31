@@ -1,6 +1,7 @@
 "use client";
 
 import { useEffect, useState } from "react";
+import Link from "next/link";
 import { GlassCard } from "@/components/GlassCard";
 import { ProgressDots } from "@/components/ProgressDots";
 import { SessionList } from "@/components/SessionList";
@@ -182,6 +183,13 @@ export default function Home() {
       </GlassCard>
 
       <SessionList refreshKey={refreshKey} />
+
+      <Link
+        href="/captures"
+        className="text-center text-xs text-white/40 underline underline-offset-2 hover:text-white/70"
+      >
+        클라우드에 저장된 데이터 전체 보기 / 라벨별로 zip 다운로드 →
+      </Link>
 
       <footer className="pb-4 text-center text-[10px] text-white/25">
         이 페이지는 반드시 <strong>HTTPS</strong>로 접속해야 카메라를 쓸 수 있습니다.
