@@ -119,13 +119,14 @@ export async function GET(req: NextRequest) {
     zip.file("_download_errors.txt", failures.join("\n"));
   }
 
-  // "nodebuffer"(Buffer)로 만들면 TypeScript가 NextResponse의 BodyInit 타입과
-  // 안 맞다고 빌드를 실패시킨다 (Buffer가 구조적으로 URLSearchParams 쪽
-  // 오버로드로 잘못 추론됨) — Uint8Array는 BodyInit에 바로 들어맞아서 이걸로 만든다.
   const zipBuffer = await zip.generateAsync({ type: "uint8array" });
   const zipFilename = `${safeName(label ?? "all_captures")}.zip`;
 
-  return new NextResponse(zipBuffer, {
+  // 최신 @types/node에서 Uint8Array가 제네릭(ArrayBufferLike)을 갖게 되면서,
+  // DOM lib의 BodyInit(Uint8Array<ArrayBuffer> 기준)이랑 구조적으로 안 맞다고
+  // 빌드 타임에 타입 에러가 난다 (Buffer로 해도 동일). 런타임에서는 Next.js가
+  // Uint8Array body를 문제없이 처리하므로, 이 지점만 타입 단언으로 우회한다.
+  return new NextResponse(zipBuffer as unknown as BodyInit, {
     status: 200,
     headers: {
       "Content-Type": "application/zip",
