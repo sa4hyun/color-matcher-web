@@ -7,7 +7,7 @@ interface ProgressDotsProps {
   currentStep: number; // -1이면 아직 시작 전
 }
 
-/** 배경(회색) + LED 10색 진행 상태를 점으로 보여준다. */
+/** 배경(회색) + LED 5색 진행 상태를 점으로 보여준다. */
 export function ProgressDots({ totalSteps, currentStep }: ProgressDotsProps) {
   const colors = ["#94A3B8", ...LED_CHANNEL_NAMES.map((c) => LED_CHANNEL_HEX[c])];
 

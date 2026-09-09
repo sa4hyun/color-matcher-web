@@ -8,7 +8,7 @@
 
 create table if not exists device_state (
   device_id text primary key,
-  desired_channel integer not null default -1,   -- 앱이 요청한 채널 (-1=OFF, 0~9=LED)
+  desired_channel integer not null default -1,   -- 앱이 요청한 채널 (-1=OFF, 0~4=LED)
   command_id bigint not null default 0,           -- 앱이 새 명령을 보낼 때마다 +1
   applied_id bigint not null default 0,           -- ESP32가 마지막으로 적용 완료한 command_id
   applied_channel integer not null default -1,    -- ESP32가 실제로 켠 채널

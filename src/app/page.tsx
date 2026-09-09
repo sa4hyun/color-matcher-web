@@ -63,7 +63,7 @@ export default function Home() {
       <header className="pt-2 text-center">
         <h1 className="text-xl font-semibold tracking-tight">ColorMatcher</h1>
         <p className="mt-1 text-xs text-white/40">
-          ESP32 LED {LED_CHANNEL_NAMES.length}개 (GPIO 14/13/12/36/37/21/47/48/38/39) · Wi-Fi 촬영
+          ESP32 LED {LED_CHANNEL_NAMES.length}개 (GPIO 14/13/12/36/37) · Wi-Fi 촬영
         </p>
       </header>
 
