@@ -119,7 +119,10 @@ export async function GET(req: NextRequest) {
     zip.file("_download_errors.txt", failures.join("\n"));
   }
 
-  const zipBuffer = await zip.generateAsync({ type: "nodebuffer" });
+  // "nodebuffer"(Buffer)로 만들면 TypeScript가 NextResponse의 BodyInit 타입과
+  // 안 맞다고 빌드를 실패시킨다 (Buffer가 구조적으로 URLSearchParams 쪽
+  // 오버로드로 잘못 추론됨) — Uint8Array는 BodyInit에 바로 들어맞아서 이걸로 만든다.
+  const zipBuffer = await zip.generateAsync({ type: "uint8array" });
   const zipFilename = `${safeName(label ?? "all_captures")}.zip`;
 
   return new NextResponse(zipBuffer, {
