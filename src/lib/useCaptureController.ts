@@ -9,7 +9,7 @@ import { uploadSessionToCloud } from "./cloudUpload";
 
 export type FlowState = "idle" | "capturing" | "done" | "error";
 
-const SETTLE_MS = 200; // LED가 켜졌다고 확인된 뒤에도 카메라 노출/화이트밸런스가 안정될 때까지 잠깐 대기
+const SETTLE_MS = 2500; // LED가 켜졌다고 확인된 뒤 카메라 자동노출/화이트밸런스가 안정될 때까지 대기 (2~3초)
 const DEVICE_STALE_MS = 45_000; // 이 시간 안에 ESP32가 한 번도 폴링을 안 했으면 "연결 끊김"으로 표시
 
 export function useCaptureController() {
@@ -160,8 +160,12 @@ export function useCaptureController() {
           onTick: (elapsed) =>
             setWaitMessage(`${label} 준비 중... (${Math.round(elapsed / 1000)}초 경과 — LTE라 조금 걸려요)`),
         });
-        setWaitMessage(null);
+        // LED가 켜졌다고 확인된 뒤에도 카메라 자동노출/화이트밸런스가 안정될 때까지
+        // SETTLE_MS(2~3초)만큼 더 기다렸다가 찍는다 — 켜지자마자 찍으면 아직
+        // 노출이 덜 맞은 프레임이 잡힐 수 있어서.
+        setWaitMessage(`${label} 카메라 조정 중...`);
         await new Promise((r) => setTimeout(r, SETTLE_MS));
+        setWaitMessage(null);
         const shot = await captureStep(step);
         collected.push(shot);
         setShots([...collected]);

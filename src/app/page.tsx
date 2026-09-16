@@ -95,14 +95,25 @@ export default function Home() {
       </GlassCard>
 
       <GlassCard className="!p-0 overflow-hidden">
-        <div className="relative aspect-[3/4] w-full bg-black">
+        <div className="relative aspect-[3/4] w-full overflow-hidden bg-black">
+          {/*
+            colorAnalysis.ts의 captureFrame과 동일하게 2배 디지털 줌을 화면
+            미리보기에도 적용한다 — 안 그러면 화면엔 넓게 보이는데 실제 저장되는
+            사진/분석은 확대된 중앙만 쓰여서 사용자가 조준한 것과 결과가 달라짐.
+            transform: scale(2)는 중앙 기준으로 확대하고, 부모의 overflow-hidden이
+            튀어나온 부분을 잘라준다.
+          */}
           {/* eslint-disable-next-line jsx-a11y/media-has-caption */}
           <video
             ref={c.videoRef}
             playsInline
             muted
             className="h-full w-full object-cover"
+            style={{ transform: "scale(2)", transformOrigin: "center center" }}
           />
+          <div className="pointer-events-none absolute right-2 top-2 rounded-full bg-black/50 px-2 py-0.5 text-[10px] text-white/70">
+            2× 디지털 줌
+          </div>
           {!c.cameraReady && (
             <div className="absolute inset-0 flex items-center justify-center bg-black/60 p-4 text-center text-xs text-white/70">
               {c.cameraError ?? "카메라 준비 중..."}
