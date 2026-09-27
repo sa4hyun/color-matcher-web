@@ -16,6 +16,8 @@ interface CaptureRow {
   b: number;
   storage_path: string;
   created_at: string;
+  source?: string | null;
+  pd_mv?: number | string | null;
 }
 
 function safeName(name: string): string {
@@ -27,10 +29,22 @@ function groupIntoSessions(rows: CaptureRow[]): CaptureSession[] {
   for (const row of rows) {
     let session = sessions.get(row.session_id);
     if (!session) {
-      session = { id: row.session_id, createdAt: row.created_at, label: row.label, shots: [] };
+      session = {
+        id: row.session_id,
+        createdAt: row.created_at,
+        label: row.label,
+        shots: [],
+        source: row.source === "camera" ? "camera" : "phone",
+      };
       sessions.set(row.session_id, session);
     }
-    const shot: RawShot = { stepIndex: row.step_index, r: Number(row.r), g: Number(row.g), b: Number(row.b) };
+    const shot: RawShot = {
+      stepIndex: row.step_index,
+      r: Number(row.r),
+      g: Number(row.g),
+      b: Number(row.b),
+      pdMv: row.pd_mv === null || row.pd_mv === undefined ? undefined : Number(row.pd_mv),
+    };
     session.shots.push(shot);
     // 세션의 대표 생성시각은 가장 이른 촬영(step 0=배경)을 기준으로 둔다.
     if (row.created_at < session.createdAt) session.createdAt = row.created_at;
@@ -55,7 +69,7 @@ export async function GET(req: NextRequest) {
   const supabase = getSupabaseAdmin();
   let query = supabase
     .from("captures")
-    .select("session_id, label, step_index, channel_name, r, g, b, storage_path, created_at")
+    .select("*")
     .order("label", { ascending: true })
     .order("session_id", { ascending: true })
     .order("step_index", { ascending: true })

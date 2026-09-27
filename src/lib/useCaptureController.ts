@@ -3,7 +3,7 @@
 import { useCallback, useEffect, useRef, useState } from "react";
 import { getStatus, setChannelAndWait } from "./ledClient";
 import { captureFrame } from "./colorAnalysis";
-import { CaptureSession, LED_CHANNEL_NAMES, RawShot, isSessionComplete } from "./types";
+import { CaptureSession, LED_CHANNEL_LABELS_KO, LED_CHANNEL_NAMES, RawShot, isSessionComplete } from "./types";
 import { saveSessionToDb } from "./db";
 import { uploadSessionToCloud } from "./cloudUpload";
 
@@ -79,6 +79,13 @@ export function useCaptureController() {
     [refreshCameraList],
   );
 
+  const stopCamera = useCallback(() => {
+    streamRef.current?.getTracks().forEach((t) => t.stop());
+    streamRef.current = null;
+    if (videoRef.current) videoRef.current.srcObject = null;
+    setCameraReady(false);
+  }, []);
+
   const switchCamera = useCallback(
     (deviceId: string) => {
       startCamera(deviceId);
@@ -122,10 +129,17 @@ export function useCaptureController() {
     setConnecting(false);
   }, [refreshDeviceStatus]);
 
-  const captureStep = useCallback(async (stepIndex: number): Promise<RawShot> => {
+  const captureStep = useCallback(async (stepIndex: number, pdMv?: number | null): Promise<RawShot> => {
     if (!videoRef.current) throw new Error("카메라가 준비되지 않았습니다");
     const frame = await captureFrame(videoRef.current);
-    return { stepIndex, r: frame.r, g: frame.g, b: frame.b, imageBlob: frame.blob };
+    return {
+      stepIndex,
+      r: frame.r,
+      g: frame.g,
+      b: frame.b,
+      imageBlob: frame.blob,
+      pdMv: typeof pdMv === "number" ? pdMv : undefined,
+    };
   }, []);
 
   /**
@@ -155,8 +169,10 @@ export function useCaptureController() {
     try {
       for (let step = 0; step < totalSteps; step++) {
         const channel = step === 0 ? -1 : step - 1; // -1 = 전체 OFF(배경)
-        const label = step === 0 ? "배경(전체 OFF)" : `LED ${LED_CHANNEL_NAMES[channel]}`;
-        await setChannelAndWait(channel, {
+        const label = step === 0 ? "배경(전체 OFF)" : `LED ${LED_CHANNEL_LABELS_KO[channel]}`;
+        // LTE 보드는 LED를 켠 뒤 포토다이오드 1초 평균을 재고 나서 ack하므로,
+        // 적용 확인 시점의 상태에 이 단계의 포토다이오드 값이 들어 있다.
+        const applied = await setChannelAndWait(channel, {
           onTick: (elapsed) =>
             setWaitMessage(`${label} 준비 중... (${Math.round(elapsed / 1000)}초 경과 — LTE라 조금 걸려요)`),
         });
@@ -166,7 +182,7 @@ export function useCaptureController() {
         setWaitMessage(`${label} 카메라 조정 중...`);
         await new Promise((r) => setTimeout(r, SETTLE_MS));
         setWaitMessage(null);
-        const shot = await captureStep(step);
+        const shot = await captureStep(step, applied.appliedPdMv);
         collected.push(shot);
         setShots([...collected]);
       }
@@ -181,6 +197,7 @@ export function useCaptureController() {
         createdAt: new Date().toISOString(),
         label: "",
         shots: collected,
+        source: "phone",
       };
       setLastSession(session);
       setState("done");
@@ -257,6 +274,7 @@ export function useCaptureController() {
     cameras,
     activeDeviceId,
     startCamera,
+    stopCamera,
     switchCamera,
     connected,
     connecting,

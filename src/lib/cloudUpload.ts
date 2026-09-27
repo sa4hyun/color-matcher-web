@@ -1,4 +1,4 @@
-import { CaptureSession, LED_CHANNEL_NAMES } from "./types";
+import { CaptureSession, captureFileField, channelNameForStep } from "./types";
 
 export interface CloudUploadResult {
   uploaded: number;
@@ -6,11 +6,6 @@ export interface CloudUploadResult {
   errors: string[];
 }
 
-function fileFieldFor(stepIndex: number, channelName: string): string {
-  return stepIndex === 0
-    ? "00_background"
-    : `${String(stepIndex).padStart(2, "0")}_led${stepIndex - 1}_${channelName}`;
-}
 
 /**
  * 촬영 세션(배경 1장 + LED N장)을 서버(/api/captures/upload)를 거쳐
@@ -27,26 +22,24 @@ export async function uploadSessionToCloud(session: CaptureSession): Promise<Clo
   const sorted = [...session.shots].sort((a, b) => a.stepIndex - b.stepIndex);
   const withBlob = sorted.filter((shot) => !!shot.imageBlob);
 
-  const shotsMeta = withBlob.map((shot) => {
-    const channelName = shot.stepIndex === 0 ? "background" : LED_CHANNEL_NAMES[shot.stepIndex - 1] ?? "";
-    return {
-      stepIndex: shot.stepIndex,
-      r: shot.r,
-      g: shot.g,
-      b: shot.b,
-      channelName,
-      fileField: fileFieldFor(shot.stepIndex, channelName),
-    };
-  });
+  const shotsMeta = withBlob.map((shot) => ({
+    stepIndex: shot.stepIndex,
+    r: shot.r,
+    g: shot.g,
+    b: shot.b,
+    pdMv: shot.pdMv ?? null,
+    channelName: channelNameForStep(shot.stepIndex),
+    fileField: captureFileField(shot.stepIndex),
+  }));
 
   const form = new FormData();
   form.append("sessionId", session.id);
   form.append("label", session.label);
   form.append("shotsMeta", JSON.stringify(shotsMeta));
+  form.append("source", session.source ?? "phone");
 
   for (const shot of withBlob) {
-    const channelName = shot.stepIndex === 0 ? "background" : LED_CHANNEL_NAMES[shot.stepIndex - 1] ?? "";
-    const fileField = fileFieldFor(shot.stepIndex, channelName);
+    const fileField = captureFileField(shot.stepIndex);
     form.append(fileField, shot.imageBlob as Blob, `${fileField}.jpg`);
   }
 

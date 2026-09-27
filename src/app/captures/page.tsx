@@ -7,6 +7,7 @@ import { GlassCard } from "@/components/GlassCard";
 interface LabelSummary {
   label: string;
   sessionCount: number;
+  cameraSessionCount?: number;
   lastCapturedAt: string;
 }
 
@@ -74,6 +75,7 @@ export default function CapturesPage() {
           </div>
           <p className="mt-2 text-[11px] text-white/30">
             전체 다운로드는 라벨별 폴더로 나뉘고, 각 폴더 안에 dataset.csv(RGB/fingerprint 요약)도 같이 들어갑니다.
+            CSV 맨 뒤에 촬영 방식(source: phone/camera)과 단계별 포토다이오드 값(bg_pd_mv, ch0_pd_mv~)이 붙어 있습니다.
           </p>
         </GlassCard>
       )}
@@ -97,7 +99,9 @@ export default function CapturesPage() {
               <div className="min-w-0">
                 <p className="truncate text-sm font-medium text-white/90">{item.label}</p>
                 <p className="mt-0.5 text-[11px] text-white/40">
-                  세션 {item.sessionCount}개 · 최근 {formatDate(item.lastCapturedAt)}
+                  세션 {item.sessionCount}개
+                  {item.cameraSessionCount ? ` (폰 ${item.sessionCount - item.cameraSessionCount} · 카메라 모듈 ${item.cameraSessionCount})` : ""} · 최근{" "}
+                  {formatDate(item.lastCapturedAt)}
                 </p>
               </div>
               <a

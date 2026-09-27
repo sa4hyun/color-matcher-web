@@ -1,7 +1,7 @@
 /**
  * esp32_firmware/src/main.cpp 의 LED_PINS 순서와 반드시 같아야 한다.
- * GPIO 14 → Red(ch0), GPIO 13 → Green(ch1), GPIO 12 → Blue(ch2),
- * GPIO 36 → LED4(ch3), GPIO 37 → LED5(ch4). (실측 배선 기준 — 직접 설계/지정)
+ * GPIO 14 → 빨강(ch0), GPIO 13 → 하양(ch1), GPIO 12 → 초록(ch2),
+ * GPIO 36 → 파랑(ch3), GPIO 37 → 주황(ch4). (실측 배선 기준 — 직접 설계/지정)
  *
  * 히스토리: 원래 최종 설계는 5개였는데, 중간에 LED6~10(GPIO 21/47/48/38/39)까지
  * 10개로 확장했다가 (2026-08-27) 부품비 문제로 다시 원래 5개로 되돌렸다
@@ -11,16 +11,24 @@
  * 시도하다, 보드 헤더에 실제로 나와 있는 GPIO36/37로 최종 확정했다.
  * 배선이 또 바뀌면 이 배열과 esp32_firmware의 LED_PINS를 함께 맞춰서 바꾸면 된다.
  */
-export const LED_CHANNEL_NAMES = ["Red", "Green", "Blue", "LED4", "LED5"] as const;
+// 실제 배선 색 (2026-09-27 확인): GPIO14=빨강, 13=하양, 12=초록, 36=파랑, 37=주황.
+// 예전엔 이름이 Red/Green/Blue/LED4/LED5로 한 칸씩 밀려 있었다. 이미 저장된 데이터의
+// channel_name에는 옛 이름이 남아 있을 수 있지만, 분석(CSV)은 이름이 아니라 순서(ch0~ch4)로
+// 하므로 영향이 없다.
+export const LED_CHANNEL_NAMES = ["Red", "White", "Green", "Blue", "Orange"] as const;
+export const LED_CHANNEL_LABELS_KO = ["빨강", "하양", "초록", "파랑", "주황"] as const;
 export const LED_GPIO_PINS = [14, 13, 12, 36, 37] as const;
 
 export const LED_CHANNEL_HEX: Record<(typeof LED_CHANNEL_NAMES)[number], string> = {
   Red: "#EF4444",
+  White: "#E5E7EB",
   Green: "#22C55E",
   Blue: "#3B82F6",
-  LED4: "#FACC15",
-  LED5: "#F97316",
+  Orange: "#F97316",
 };
+
+/** 촬영 방식: 폰 카메라(기존) 또는 카메라 모듈(Freenove 보드, LTE 보드가 직접 촬영) */
+export type CaptureSource = "phone" | "camera";
 
 /** 촬영 1장의 raw 결과 (배경 또는 특정 LED 채널) */
 export interface RawShot {
@@ -33,6 +41,8 @@ export interface RawShot {
    * CSV로 내보낼 때는 포함되지 않는다 (RGB/fingerprint만 내보냄).
    */
   imageBlob?: Blob;
+  /** 촬영 직전 1초 동안의 포토다이오드 평균 (mV). 측정값이 없으면 undefined. */
+  pdMv?: number;
 }
 
 /** 촬영 세션 하나 (배경 1장 + LED N장) */
@@ -41,6 +51,8 @@ export interface CaptureSession {
   createdAt: string; // ISO
   label: string;
   shots: RawShot[]; // length = LED_CHANNEL_NAMES.length + 1
+  /** 촬영 방식. 예전 데이터는 없을 수 있음 → "phone"으로 간주 */
+  source?: CaptureSource;
 }
 
 export function isSessionComplete(shots: RawShot[]): boolean {
@@ -74,4 +86,20 @@ export function euclideanDistance(a: number[], b: number[]): number {
     sum += (a[i] - b[i]) ** 2;
   }
   return Math.sqrt(sum);
+}
+
+/** step 번호 → 채널 이름 ("background" 또는 LED_CHANNEL_NAMES 중 하나) */
+export function channelNameForStep(stepIndex: number): string {
+  return stepIndex === 0 ? "background" : LED_CHANNEL_NAMES[stepIndex - 1] ?? `step${stepIndex}`;
+}
+
+/**
+ * Storage에 올릴 사진 파일 이름 (확장자 제외). 폰/카메라 모듈 둘 다 같은 규칙을 쓴다.
+ * 00_background, 01_led0_Red, 02_led1_White, ...
+ */
+export function captureFileField(stepIndex: number): string {
+  const channelName = channelNameForStep(stepIndex);
+  return stepIndex === 0
+    ? "00_background"
+    : `${String(stepIndex).padStart(2, "0")}_led${stepIndex - 1}_${channelName}`;
 }

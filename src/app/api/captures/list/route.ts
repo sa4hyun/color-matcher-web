@@ -16,7 +16,7 @@ export async function GET() {
   // 개인 연구용 프로젝트 스케일을 넘어설 일이 없지만 혹시 몰라 넉넉히 5000행까지 조회.
   const { data, error } = await supabase
     .from("captures")
-    .select("label, session_id, created_at")
+    .select("*")
     .order("created_at", { ascending: false })
     .range(0, 4999);
 
@@ -26,20 +26,23 @@ export async function GET() {
 
   const byLabel = new Map<
     string,
-    { label: string; sessionIds: Set<string>; lastCapturedAt: string }
+    { label: string; sessionIds: Set<string>; cameraSessionIds: Set<string>; lastCapturedAt: string }
   >();
 
   for (const row of data ?? []) {
     const label = row.label || "(라벨 없음)";
+    const isCamera = row.source === "camera";
     const entry = byLabel.get(label);
     if (!entry) {
       byLabel.set(label, {
         label,
         sessionIds: new Set([row.session_id]),
+        cameraSessionIds: new Set(isCamera ? [row.session_id] : []),
         lastCapturedAt: row.created_at,
       });
     } else {
       entry.sessionIds.add(row.session_id);
+      if (isCamera) entry.cameraSessionIds.add(row.session_id);
       if (row.created_at > entry.lastCapturedAt) entry.lastCapturedAt = row.created_at;
     }
   }
@@ -48,6 +51,7 @@ export async function GET() {
     .map((entry) => ({
       label: entry.label,
       sessionCount: entry.sessionIds.size,
+      cameraSessionCount: entry.cameraSessionIds.size,
       lastCapturedAt: entry.lastCapturedAt,
     }))
     .sort((a, b) => (a.lastCapturedAt < b.lastCapturedAt ? 1 : -1));

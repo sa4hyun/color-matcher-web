@@ -15,6 +15,8 @@ export interface DeviceStatus {
   appliedChannel: number;
   appliedAt: string | null;
   lastSeenAt: string | null;
+  /** LED를 켠 뒤 LTE 보드가 잰 포토다이오드 1초 평균 (mV). 없으면 null */
+  appliedPdMv: number | null;
 }
 
 async function parseJsonResponse<T>(res: Response): Promise<T> {
@@ -43,11 +45,12 @@ async function postCommand(channel: number): Promise<number> {
  * channel: -1 = 전체 OFF(배경), 0~2 = 해당 LED만 ON.
  * 명령을 보낸 뒤, ESP32가 LTE로 그 명령을 가져가 실행하고 ack할 때까지
  * /api/device/status를 폴링하며 기다린다.
+ * 적용이 확인된 시점의 상태(포토다이오드 값 포함)를 돌려준다.
  */
 export async function setChannelAndWait(
   channel: number,
   opts?: { timeoutMs?: number; pollMs?: number; onTick?: (elapsedMs: number) => void },
-): Promise<void> {
+): Promise<DeviceStatus> {
   const timeoutMs = opts?.timeoutMs ?? 60000;
   const pollMs = opts?.pollMs ?? 1500;
   const commandId = await postCommand(channel);
@@ -64,7 +67,7 @@ export async function setChannelAndWait(
 
     const status = await getStatus();
     if (status.appliedId >= commandId && status.appliedChannel === channel) {
-      return;
+      return status;
     }
     await new Promise((r) => setTimeout(r, pollMs));
   }

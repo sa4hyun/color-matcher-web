@@ -2,6 +2,7 @@
 
 import { useEffect, useState } from "react";
 import Link from "next/link";
+import { CameraModulePanel } from "@/components/CameraModulePanel";
 import { GlassCard } from "@/components/GlassCard";
 import { ProgressDots } from "@/components/ProgressDots";
 import { SessionList } from "@/components/SessionList";
@@ -15,16 +16,42 @@ function formatLastSeen(lastSeenAt: string | null): string {
   return `${Math.round(seconds / 60)}분 전 응답`;
 }
 
+type CaptureMode = "phone" | "camera";
+const MODE_STORAGE_KEY = "color-matcher-capture-mode";
+
 export default function Home() {
   const c = useCaptureController();
   const [labelInput, setLabelInput] = useState("");
   const [refreshKey, setRefreshKey] = useState(0);
   const [savedMessage, setSavedMessage] = useState<string | null>(null);
+  // 촬영 방식: 처음엔 선택 화면(null). 마지막으로 고른 방식은 이 브라우저에 기억해둔다.
+  const [mode, setMode] = useState<CaptureMode | null>(null);
 
   useEffect(() => {
-    c.startCamera();
-    // eslint-disable-next-line react-hooks/exhaustive-deps
+    try {
+      const saved = window.localStorage.getItem(MODE_STORAGE_KEY);
+      if (saved === "phone" || saved === "camera") setMode(saved);
+    } catch {
+      // 저장소를 못 쓰는 환경이면 매번 선택 화면부터
+    }
   }, []);
+
+  const chooseMode = (next: CaptureMode | null) => {
+    setMode(next);
+    try {
+      if (next) window.localStorage.setItem(MODE_STORAGE_KEY, next);
+      else window.localStorage.removeItem(MODE_STORAGE_KEY);
+    } catch {
+      // 무시
+    }
+  };
+
+  // 폰 카메라는 "폰 카메라 촬영"을 골랐을 때만 켠다 (카메라 모듈 모드에선 필요 없음)
+  useEffect(() => {
+    if (mode === "phone") c.startCamera();
+    else c.stopCamera();
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [mode]);
 
   useEffect(() => {
     if (c.state === "idle" || c.state === "capturing") {
@@ -63,9 +90,54 @@ export default function Home() {
       <header className="pt-2 text-center">
         <h1 className="text-xl font-semibold tracking-tight">ColorMatcher</h1>
         <p className="mt-1 text-xs text-white/40">
-          ESP32 LED {LED_CHANNEL_NAMES.length}개 (GPIO 14/13/12/36/37) · Wi-Fi 촬영
+          ESP32 LED {LED_CHANNEL_NAMES.length}개 (빨강·하양·초록·파랑·주황) · LTE
         </p>
+        {mode && (
+          <button
+            onClick={() => chooseMode(null)}
+            className="mt-2 rounded-full bg-white/10 px-3 py-1 text-[11px] text-white/70 transition hover:bg-white/20"
+          >
+            {mode === "phone" ? "폰 카메라 촬영" : "카메라 모듈 촬영"} · 촬영 방식 바꾸기
+          </button>
+        )}
       </header>
+
+      {mode === null && (
+        <GlassCard>
+          <p className="text-center text-sm font-medium text-white/80">촬영 방식을 고르세요</p>
+          <div className="mt-4 flex flex-col gap-3">
+            <button
+              onClick={() => chooseMode("phone")}
+              className="rounded-xl border border-white/10 bg-white/5 px-4 py-4 text-left transition hover:bg-white/10"
+            >
+              <p className="text-sm font-semibold">폰 카메라 촬영</p>
+              <p className="mt-1 text-[11px] text-white/45">
+                지금 이 폰 카메라로 찍어요. LED 단계마다 LTE 보드와 주고받아서 조금 느려요.
+              </p>
+            </button>
+            <button
+              onClick={() => chooseMode("camera")}
+              className="rounded-xl border border-white/10 bg-white/5 px-4 py-4 text-left transition hover:bg-white/10"
+            >
+              <p className="text-sm font-semibold">카메라 모듈 촬영</p>
+              <p className="mt-1 text-[11px] text-white/45">
+                보드에 달린 카메라가 찍어요. 버튼 한 번이면 LED 6단계 촬영과 업로드까지 알아서 해요 (약 40초).
+              </p>
+            </button>
+          </div>
+        </GlassCard>
+      )}
+
+      {mode === "camera" && (
+        <CameraModulePanel
+          connected={c.connected}
+          lastSeenText={formatLastSeen(c.lastSeenAt)}
+          onSaved={() => setRefreshKey((k) => k + 1)}
+        />
+      )}
+
+      {mode === "phone" && (
+      <>
 
       <GlassCard>
         <div className="flex items-center justify-between">
@@ -194,6 +266,8 @@ export default function Home() {
       </GlassCard>
 
       <SessionList refreshKey={refreshKey} />
+      </>
+      )}
 
       <Link
         href="/captures"

@@ -1,4 +1,4 @@
-import { CaptureSession, LED_CHANNEL_NAMES, computeFingerprint } from "./types";
+import { CaptureSession, LED_CHANNEL_NAMES, captureFileField, computeFingerprint } from "./types";
 
 /**
  * CSV 변환 유틸리티. 실제 저장/불러오기는 lib/db.ts(IndexedDB)가 담당하고,
@@ -10,6 +10,10 @@ function csvHeaderRow(): string[] {
   const cols = ["session_id", "label", "created_at", "bg_r", "bg_g", "bg_b"];
   LED_CHANNEL_NAMES.forEach((_, i) => cols.push(`ch${i}_r`, `ch${i}_g`, `ch${i}_b`));
   LED_CHANNEL_NAMES.forEach((_, i) => cols.push(`norm_ch${i}_r`, `norm_ch${i}_g`, `norm_ch${i}_b`));
+  // 2026-09 추가: 촬영 방식 + 포토다이오드. 기존 칸 순서를 안 바꾸려고 맨 뒤에 붙인다
+  // (ml_pipeline 등 기존 분석 코드가 칸 위치로 읽어도 깨지지 않게).
+  cols.push("source", "bg_pd_mv");
+  LED_CHANNEL_NAMES.forEach((_, i) => cols.push(`ch${i}_pd_mv`));
   return cols;
 }
 
@@ -42,6 +46,11 @@ export function sessionsToCsv(sessions: CaptureSession[]): string {
     ];
     for (const shot of ledShots) row.push(shot.r, shot.g, shot.b);
     for (const value of fingerprint) row.push(value);
+    row.push(session.source ?? "phone", bg?.pdMv ?? "");
+    LED_CHANNEL_NAMES.forEach((_, i) => {
+      const shot = ledShots.find((s) => s.stepIndex === i + 1);
+      row.push(shot?.pdMv ?? "");
+    });
 
     lines.push(row.map(csvEscape).join(","));
   }
@@ -72,10 +81,7 @@ export async function downloadSessionImagesZip(session: CaptureSession) {
   const sorted = [...session.shots].sort((a, b) => a.stepIndex - b.stepIndex);
   for (const shot of sorted) {
     if (!shot.imageBlob) continue;
-    const name =
-      shot.stepIndex === 0
-        ? "00_background.jpg"
-        : `${String(shot.stepIndex).padStart(2, "0")}_led${shot.stepIndex - 1}_${LED_CHANNEL_NAMES[shot.stepIndex - 1] ?? ""}.jpg`;
+    const name = `${captureFileField(shot.stepIndex)}.jpg`;
     folder?.file(name, shot.imageBlob);
   }
 

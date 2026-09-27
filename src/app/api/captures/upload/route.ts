@@ -25,7 +25,19 @@ export async function POST(req: NextRequest) {
     return NextResponse.json({ ok: false, error: "sessionId/label/shotsMeta가 필요합니다" }, { status: 400 });
   }
 
-  let shotsMeta: Array<{ stepIndex: number; r: number; g: number; b: number; channelName: string; fileField: string }>;
+  // source: "phone"(기본) 또는 "camera". pdMv: 촬영 직전 포토다이오드 1초 평균 (없으면 null)
+  const sourceRaw = form.get("source");
+  const source = sourceRaw === "camera" ? "camera" : "phone";
+
+  let shotsMeta: Array<{
+    stepIndex: number;
+    r: number;
+    g: number;
+    b: number;
+    pdMv?: number | null;
+    channelName: string;
+    fileField: string;
+  }>;
   try {
     shotsMeta = JSON.parse(shotsMetaRaw);
   } catch {
@@ -66,6 +78,8 @@ export async function POST(req: NextRequest) {
       g: meta.g,
       b: meta.b,
       storage_path: path,
+      source,
+      pd_mv: typeof meta.pdMv === "number" && Number.isFinite(meta.pdMv) ? meta.pdMv : null,
     });
 
     if (insertErr) {

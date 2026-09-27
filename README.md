@@ -176,3 +176,31 @@ Red/Green/Blue/LED4/LED5 LED가 연결되어 있어야
 헤더에 실제로 노출된 GPIO36/37로 최종 확정했습니다. 한때 LED6~10까지
 10개로 늘렸다가(2026-08-27), 부품비 문제로 다시 원래 설계인 5개로
 되돌렸습니다(2026-09-09). 배선이 또 바뀌면 알려주세요).
+
+## 카메라 모듈 모드 + 포토다이오드 (2026-09-28 추가)
+
+첫 화면에서 촬영 방식을 고른다.
+
+- **폰 카메라 촬영**: 기존과 같다. 단계마다 LTE 보드가 LED를 켠 뒤 포토다이오드 1초 평균을 재서
+  ack하고(`device_state.applied_pd_mv`), 그 값이 사진과 같이 저장된다.
+- **카메라 모듈 촬영**: 라벨 입력 → 버튼 한 번. `cam_sessions`에 요청을 넣으면 LTE 보드가 가져가서
+  LED 6단계 촬영 + 업로드(`cam_shots`)를 알아서 하고, 끝나면 `/api/camera/import`가 결과를
+  `captures` 테이블 + `captures` 스토리지로 복사한다. 그래서 `/captures` 화면과 zip/CSV 내보내기에
+  폰 촬영과 똑같은 형식으로 나온다.
+
+펌웨어/보드 쪽은 `color-matcher-web-camer` 폴더 (LTE 보드 `lte-v2.5`, 카메라 보드 `cam-board-v3.3` 이상).
+
+### 추가된 것
+| 파일 | 내용 |
+|---|---|
+| `supabase/camera_mode.sql` | `captures`에 `source`(phone/camera), `pd_mv`, `cam_session_id` 칸 추가 |
+| `src/app/api/camera/request` | 카메라 모듈 촬영 요청 |
+| `src/app/api/camera/session` | 진행 상황 + 사진 정보 |
+| `src/app/api/camera/shot` | 카메라 모듈 사진(JPEG) |
+| `src/app/api/camera/import` | 끝난 세션을 분석 데이터(captures)로 복사 |
+| `src/components/CameraModulePanel.tsx` | 카메라 모듈 촬영 화면 |
+
+### 바뀐 것
+- LED 이름: `Red/Green/Blue/LED4/LED5` → 실제 색에 맞게 `Red/White/Green/Blue/Orange` (GPIO 14/13/12/36/37).
+  이미 저장된 데이터의 `channel_name`은 옛 이름 그대로지만, CSV는 순서(ch0~ch4)로 나가므로 분석에는 영향 없음.
+- CSV(`dataset.csv`) 맨 뒤에 `source`, `bg_pd_mv`, `ch0_pd_mv` ~ `ch4_pd_mv` 칸 추가. 기존 칸 순서는 그대로.

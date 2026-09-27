@@ -19,7 +19,7 @@ export async function GET() {
 
   const { data, error } = await supabase
     .from("device_state")
-    .select("desired_channel, command_id, applied_id, applied_channel, applied_at, device_seen_at")
+    .select("*")
     .eq("device_id", DEVICE_ID)
     .maybeSingle();
 
@@ -41,5 +41,7 @@ export async function GET() {
     appliedChannel: data.applied_channel,
     appliedAt: data.applied_at,
     lastSeenAt: data.device_seen_at,
+    // LTE 보드(통합 펌웨어)가 LED를 켠 뒤 잰 포토다이오드 1초 평균. 옛 펌웨어/칸 없음이면 null
+    appliedPdMv: data.applied_pd_mv === undefined || data.applied_pd_mv === null ? null : Number(data.applied_pd_mv),
   });
 }
