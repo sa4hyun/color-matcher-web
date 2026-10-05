@@ -3,6 +3,74 @@
 import { useEffect, useState } from "react";
 import Link from "next/link";
 import { GlassCard } from "@/components/GlassCard";
+import { LED_CHANNEL_LABELS_KO } from "@/lib/types";
+
+const STEP_LABELS = ["배경", ...LED_CHANNEL_LABELS_KO];
+
+interface ShotDetail {
+  stepIndex: number;
+  r: number;
+  g: number;
+  b: number;
+  pdMv: number | null;
+}
+
+interface SessionDetail {
+  sessionId: string;
+  source: string;
+  createdAt: string;
+  shots: ShotDetail[];
+}
+
+/** 라벨 하나를 펼쳤을 때: 세션별로 사진 6장의 RGB와 포토다이오드 값을 표로 보여준다. */
+function LabelDetail({ label }: { label: string }) {
+  const [sessions, setSessions] = useState<SessionDetail[] | null>(null);
+  const [error, setError] = useState<string | null>(null);
+
+  useEffect(() => {
+    fetch(`/api/captures/sessions?label=${encodeURIComponent(label)}`, { cache: "no-store" })
+      .then((res) => res.json())
+      .then((data) => (data.ok ? setSessions(data.sessions) : setError(data.error ?? "불러오지 못했습니다")))
+      .catch((e) => setError(String(e)));
+  }, [label]);
+
+  if (error) return <p className="mt-3 text-[11px] text-danger">{error}</p>;
+  if (!sessions) return <p className="mt-3 text-[11px] text-white/40">불러오는 중...</p>;
+
+  return (
+    <div className="mt-3 flex flex-col gap-3">
+      {sessions.map((s) => (
+        <div key={s.sessionId} className="rounded-lg bg-white/5 p-2">
+          <p className="mb-1 text-[11px] text-white/50">
+            {s.source === "camera" ? "카메라 모듈" : "폰"} · {s.sessionId} · {formatDate(s.createdAt)}
+          </p>
+          <table className="w-full text-[11px] tabular-nums">
+            <thead className="text-white/40">
+              <tr>
+                <th className="text-left font-normal">단계</th>
+                <th className="text-right font-normal">R</th>
+                <th className="text-right font-normal">G</th>
+                <th className="text-right font-normal">B</th>
+                <th className="text-right font-normal">PD (mV)</th>
+              </tr>
+            </thead>
+            <tbody className="text-white/80">
+              {s.shots.map((shot) => (
+                <tr key={shot.stepIndex}>
+                  <td>{STEP_LABELS[shot.stepIndex] ?? `step${shot.stepIndex}`}</td>
+                  <td className="text-right">{shot.r.toFixed(1)}</td>
+                  <td className="text-right">{shot.g.toFixed(1)}</td>
+                  <td className="text-right">{shot.b.toFixed(1)}</td>
+                  <td className="text-right">{shot.pdMv === null ? "-" : shot.pdMv.toFixed(1)}</td>
+                </tr>
+              ))}
+            </tbody>
+          </table>
+        </div>
+      ))}
+    </div>
+  );
+}
 
 interface LabelSummary {
   label: string;
@@ -28,18 +96,42 @@ export default function CapturesPage() {
   const [totalSessions, setTotalSessions] = useState(0);
   const [errorMessage, setErrorMessage] = useState<string | null>(null);
 
+  const [importNote, setImportNote] = useState<string | null>(null);
+  const [openLabel, setOpenLabel] = useState<string | null>(null);
+
   useEffect(() => {
-    fetch("/api/captures/list")
-      .then((res) => res.json())
-      .then((data) => {
-        if (!data.ok) {
-          setErrorMessage(data.error ?? "목록을 불러오지 못했습니다");
-          return;
+    const loadList = () =>
+      fetch("/api/captures/list", { cache: "no-store" })
+        .then((res) => res.json())
+        .then((data) => {
+          if (!data.ok) {
+            setErrorMessage(data.error ?? "목록을 불러오지 못했습니다");
+            return;
+          }
+          setLabels(data.labels);
+          setTotalSessions(data.totalSessions ?? 0);
+        })
+        .catch((err) => setErrorMessage(String(err)));
+
+    // 시리얼 's'로 찍었거나 촬영 중 앱을 닫아서 아직 분석 데이터로 안 옮겨진
+    // 카메라 모듈 세션을 먼저 가져온 뒤 목록을 불러온다 (남은 게 있으면 몇 번 반복).
+    const importPending = async () => {
+      let total = 0;
+      for (let i = 0; i < 10; i++) {
+        try {
+          const res = await fetch("/api/camera/import-pending", { method: "POST" });
+          const data = await res.json();
+          total += (data.imported ?? []).length;
+          if (data.errors?.length) setImportNote(`가져오기 일부 실패: ${data.errors.join("; ")}`);
+          if (!data.remaining) break;
+        } catch {
+          break;
         }
-        setLabels(data.labels);
-        setTotalSessions(data.totalSessions ?? 0);
-      })
-      .catch((err) => setErrorMessage(String(err)));
+      }
+      if (total > 0) setImportNote((prev) => prev ?? `빠져 있던 카메라 모듈 세션 ${total}개를 분석 데이터로 가져왔습니다`);
+    };
+
+    importPending().finally(loadList);
   }, []);
 
   return (
@@ -80,6 +172,12 @@ export default function CapturesPage() {
         </GlassCard>
       )}
 
+      {importNote && (
+        <GlassCard>
+          <p className="text-xs text-accentCyan">{importNote}</p>
+        </GlassCard>
+      )}
+
       {labels === null && !errorMessage && (
         <GlassCard>
           <p className="text-center text-xs text-white/40">불러오는 중...</p>
@@ -104,13 +202,22 @@ export default function CapturesPage() {
                   {formatDate(item.lastCapturedAt)}
                 </p>
               </div>
-              <a
-                href={`/api/captures/export?label=${encodeURIComponent(item.label)}`}
-                className="shrink-0 rounded-lg bg-white/10 px-3 py-1.5 text-xs font-medium transition hover:bg-white/20"
-              >
-                다운로드
-              </a>
+              <div className="flex shrink-0 gap-1.5">
+                <button
+                  onClick={() => setOpenLabel(openLabel === item.label ? null : item.label)}
+                  className="rounded-lg bg-white/10 px-3 py-1.5 text-xs font-medium transition hover:bg-white/20"
+                >
+                  {openLabel === item.label ? "접기" : "값 보기"}
+                </button>
+                <a
+                  href={`/api/captures/export?label=${encodeURIComponent(item.label)}`}
+                  className="rounded-lg bg-white/10 px-3 py-1.5 text-xs font-medium transition hover:bg-white/20"
+                >
+                  다운로드
+                </a>
+              </div>
             </div>
+            {openLabel === item.label && <LabelDetail label={item.label} />}
           </GlassCard>
         ))}
       </div>
